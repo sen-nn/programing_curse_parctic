@@ -13,22 +13,23 @@ def get_connection():
 
 
 def fetch_all_tasks():
-    """Возвращает все задачи. Используется и в GET, и в POST-ошибке."""
     conn = get_connection()
-    cursor = conn.cursor()
-    cursor.execute("SELECT id, title, status FROM tasks ORDER BY id")
-    rows = cursor.fetchall()
-    conn.close()
-    return rows
+    try:
+        cursor = conn.cursor()
+        cursor.execute("SELECT id, title, status FROM tasks ORDER BY id")
+        return cursor.fetchall()
+    except sqlite3.Error as e:
+        print(f"[DB ERROR] {e}")
+        return []
+    finally:
+        conn.close()
 
 
 @app.route('/', methods=['GET', 'POST'])
 def index():
-    # ---- ОБРАБОТКА POST ----
     if request.method == 'POST':
         title = request.form.get('title', '').strip()
 
-        # Серверная валидация: даже если браузер обошли, пустое не примем
         if not title:
             return render_template(
                 'index.html',
@@ -37,15 +38,23 @@ def index():
             )
 
         conn = get_connection()
-        cursor = conn.cursor()
-        cursor.execute("INSERT INTO tasks (title) VALUES (?)", (title,))
-        conn.commit()
-        conn.close()
+        try:
+            cursor = conn.cursor()
+            cursor.execute("INSERT INTO tasks (title) VALUES (?)", (title,))
+            conn.commit()
+        except sqlite3.Error as e:
+            conn.rollback()
+            print(f"[DB ERROR] {e}")
+            return render_template(
+                'index.html',
+                items=fetch_all_tasks(),
+                error='Не удалось сохранить задачу. Попробуйте ещё раз.'
+            )
+        finally:
+            conn.close()
 
-        # PRG-паттерн: после POST — редирект на GET
         return redirect(url_for('index'))
 
-    # ---- ОБРАБОТКА GET ----
     return render_template('index.html', items=fetch_all_tasks())
 
 
