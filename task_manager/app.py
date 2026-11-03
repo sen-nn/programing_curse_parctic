@@ -1,27 +1,34 @@
-from flask import Flask
+import sqlite3
+from flask import Flask, render_template
 
-# Создаём приложение. __name__ — имя текущего модуля;
-# Flask использует его, чтобы найти папку templates рядом с файлом.
 app = Flask(__name__)
+
+DB_PATH = 'app.db'
+
+
+def get_connection():
+    """Открывает соединение с базой и настраивает доступ к полям по имени."""
+    conn = sqlite3.connect(DB_PATH)
+    conn.row_factory = sqlite3.Row   # ← строки станут sqlite3.Row
+    return conn
 
 
 @app.route('/')
 def index():
-    return """
-    <html>
-        <head><title>Список задач</title></head>
-        <body>
-            <h1>Мой список задач</h1>
-            <p>Скоро здесь будет список задач из базы данных.</p>
-        </body>
-    </html>
-    """
-@app.route('/about')
-def about():
-    return "Это учебный список задач на Flask. Практическая работа №3."
+    # 1. Подключение
+    conn = get_connection()
+    cursor = conn.cursor()
+
+    # 2. SELECT
+    cursor.execute("SELECT id, title, status FROM tasks ORDER BY id")
+    rows = cursor.fetchall()
+
+    # 3. Закрытие (commit не нужен — данных не меняем)
+    conn.close()
+
+    # 4. Передача в шаблон
+    return render_template('index.html', items=rows)
 
 
 if __name__ == '__main__':
-    # debug=True — автоперезагрузка + подробные ошибки
-    # port=5000 — стандартный порт Flask
     app.run(debug=True, port=5000)
